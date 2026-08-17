@@ -1,0 +1,22 @@
+{
+  "name": "futleilao",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "sync": "node scripts/syncShared.mjs",
+    "seed:players": "node scripts/generatePlayers.mjs",
+    "predev": "npm run sync",
+    "dev": "concurrently -k -n SERVER,CLIENT -c blue,green \"npm run dev -w server\" \"npm run dev -w client\"",
+    "prebuild": "npm run sync",
+    "build": "npm run build -w server && npm run build -w client",
+    "start": "npm run start -w server",
+    "install:all": "npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
