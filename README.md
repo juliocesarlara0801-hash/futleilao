@@ -14,12 +14,12 @@ junto de dispositivos diferentes.
 | Frontend | React 18 + TypeScript + Tailwind CSS + Vite (PWA) |
 | Realtime | Socket.IO |
 | Backend | Node.js + Express |
-| Banco de dados | SQLite (`node:sqlite`, nativo do Node 22+, zero config) |
+| Banco de dados | SQLite (`node:sqlite`, nativo do Node, zero config) |
 | IA de simulação | API da Anthropic (Claude) — com fallback local se não houver chave |
 
 ## Pré-requisitos
 
-- **Node.js 22.5 ou superior** (o projeto usa o módulo nativo `node:sqlite`; Node 24 é o recomendado/testado).
+- **Node.js 24 ou superior** (o projeto usa o módulo nativo `node:sqlite`, que só funciona sem flag experimental a partir do Node 24).
 - npm 10+.
 
 ## Setup
