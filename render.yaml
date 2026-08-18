@@ -3,10 +3,12 @@ services:
     name: futleilao
     runtime: node
     plan: free
-    buildCommand: npm run install:all && npm run build
+    buildCommand: npm install --include=dev && npm run build
     startCommand: npm start
     envVars:
       - key: NODE_VERSION
         value: 22.12.0
+      - key: NPM_CONFIG_PRODUCTION
+        value: "false"
       - key: ANTHROPIC_API_KEY
         sync: false
