@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { motion } from 'framer-motion';
 import Standings from './Standings';
+import Button from './ui/Button';
 import type { Award, AwardType, TournamentStanding } from '../types';
 
 const AWARD_META: Record<AwardType, { icon: string; label: string }> = {
@@ -28,9 +29,11 @@ function fireConfetti() {
 interface AwardsProps {
   awards: Award[];
   standings: TournamentStanding[];
+  onBackToLobby?: () => void;
+  backToLobbyLabel?: string;
 }
 
-export default function Awards({ awards, standings }: AwardsProps) {
+export default function Awards({ awards, standings, onBackToLobby, backToLobbyLabel = '🏠 Voltar ao Lobby' }: AwardsProps) {
   useEffect(() => {
     fireConfetti();
   }, []);
@@ -54,6 +57,12 @@ export default function Awards({ awards, standings }: AwardsProps) {
       <div className="w-full">
         <Standings standings={standings} title="📊 Classificação Final" />
       </div>
+
+      {onBackToLobby && (
+        <Button onClick={onBackToLobby} className="text-lg px-8">
+          {backToLobbyLabel}
+        </Button>
+      )}
     </div>
   );
 }

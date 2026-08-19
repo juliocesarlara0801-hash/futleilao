@@ -41,9 +41,14 @@ function buildPrompt(input: SimulateMatchInput): string {
 const SYSTEM_PROMPT = `Você é um narrador esportivo brasileiro empolgante, especialista em futebol e futsal.
 Simule a partida considerando os ratings dos jogadores (70-99): jogadores com rating mais alto têm MUITO mais
 chance de participar de gols, assistências e defesas do que jogadores com rating baixo, mas upsets acontecem
-(~15% de chance de um time inferior surpreender). Use apenas nomes de jogadores fornecidos nas listas dos dois
-times. Responda ESTRITAMENTE em JSON válido, sem markdown, sem texto fora do JSON, sem backticks, seguindo
-exatamente este formato:
+(~15% de chance de um time inferior surpreender). O time com elenco mais forte (média de rating maior) deve
+ter mais chances de fazer gol e vencer, proporcional à diferença de nível — não faça o jogo determinístico,
+mas a força dos times deve pesar de verdade no placar. Não entregue só o placar seco: além dos gols (com o
+minuto exato e quem marcou/deu assistência), inclua VÁRIOS eventos "nearMiss" (lances perigosos: bola na
+trave, chute pra fora, defesa milagrosa) espalhados pelos minutos da partida, mais concentrados nos jogadores
+de rating mais alto, pra dar a sensação de jogo em construção antes de cada gol. Use apenas nomes de jogadores
+fornecidos nas listas dos dois times. Responda ESTRITAMENTE em JSON válido, sem markdown, sem texto fora do
+JSON, sem backticks, seguindo exatamente este formato:
 {
   "homeGoals": number,
   "awayGoals": number,
@@ -184,6 +189,45 @@ function describeGoal(scorer: string, assist: string | null, gk?: string): strin
   return base + assistText + gkText;
 }
 
+const NEAR_MISS_DESCRIPTIONS = [
+  (p: string) => `${p} chuta forte, mas a bola explode no travessão!`,
+  (p: string) => `${p} recebe livre na área e manda por cima do gol — perdeu um golaço!`,
+  (p: string) => `Que perigo! ${p} finaliza e a bola passa raspando a trave.`,
+  (p: string) => `${p} arrisca de fora da área, tira tinta da trave!`,
+  (p: string) => `${p} tenta o drible na entrada da área, mas a zaga corta no susto.`,
+  (p: string) => `${p} cabeceia após cruzamento, a bola vai para fora por pouco.`,
+];
+
+function describeNearMiss(scorer: string): string {
+  return NEAR_MISS_DESCRIPTIONS[Math.floor(Math.random() * NEAR_MISS_DESCRIPTIONS.length)](scorer);
+}
+
+/** Quantidade esperada de lances perigosos (chances claras) do ataque, escalando com a força relativa do time. */
+function expectedChances(attack: number, defense: number, minutes: number): number {
+  const ratio = attack / defense;
+  const expected = (minutes / 90) * 2.4 * ratio;
+  return Math.max(0, Math.round(expected * (0.5 + Math.random())));
+}
+
+function localNearMissEvents(team: Team, count: number, side: 'home' | 'away', minuteRange: [number, number]): MatchEvent[] {
+  const attackers = team.players.filter((p) => p.position === 'atacante' || p.position === 'meia');
+  const pool = attackers.length > 0 ? attackers : team.players;
+  const events: MatchEvent[] = [];
+  for (let i = 0; i < count; i++) {
+    const player = weightedPick(pool);
+    const minute = Math.floor(minuteRange[0] + Math.random() * (minuteRange[1] - minuteRange[0]));
+    events.push({
+      minute,
+      type: 'nearMiss',
+      team: side,
+      player: player.name,
+      assist: null,
+      description: describeNearMiss(player.name),
+    });
+  }
+  return events;
+}
+
 function localSaveEvents(team: Team, count: number, side: 'home' | 'away', minuteRange: [number, number]): MatchEvent[] {
   const gk = team.players.find((p) => p.position === 'goleiro');
   if (!gk) return [];
@@ -213,9 +257,14 @@ function simulatePeriod(home: Team, away: Team, minutes: number, minuteOffset: n
   const homeGk = home.players.find((p) => p.position === 'goleiro');
   const awayGk = away.players.find((p) => p.position === 'goleiro');
 
+  const homeChances = expectedChances(homeAttack, awayDefense, minutes);
+  const awayChances = expectedChances(awayAttack, homeDefense, minutes);
+
   const events = [
     ...localGoalEvents(home, awayGk, homeGoals, 'home', [minuteOffset + 1, minuteOffset + minutes]),
     ...localGoalEvents(away, homeGk, awayGoals, 'away', [minuteOffset + 1, minuteOffset + minutes]),
+    ...localNearMissEvents(home, homeChances, 'home', [minuteOffset + 1, minuteOffset + minutes]),
+    ...localNearMissEvents(away, awayChances, 'away', [minuteOffset + 1, minuteOffset + minutes]),
     ...localSaveEvents(away, Math.floor(Math.random() * 3), 'away', [minuteOffset + 1, minuteOffset + minutes]),
     ...localSaveEvents(home, Math.floor(Math.random() * 3), 'home', [minuteOffset + 1, minuteOffset + minutes]),
   ].sort((a, b) => a.minute - b.minute);

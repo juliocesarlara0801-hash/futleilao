@@ -20,7 +20,7 @@ export default function App() {
 }
 
 function OnlineApp({ onPlayLocal }: { onPlayLocal: () => void }) {
-  const { state, isHost, startTournament, dismissToast } = useGame();
+  const { state, isHost, startTournament, returnToLobby, dismissToast } = useGame();
   const phase = state.room?.phase;
 
   return (
@@ -31,14 +31,20 @@ function OnlineApp({ onPlayLocal }: { onPlayLocal: () => void }) {
         </div>
       )}
       <ToastContainer toasts={state.toasts} onDismiss={dismissToast} />
-      {renderScreen(phase, { state, isHost, startTournament, onPlayLocal })}
+      {renderScreen(phase, { state, isHost, startTournament, returnToLobby, onPlayLocal })}
     </>
   );
 }
 
 function renderScreen(
   phase: string | undefined,
-  ctx: { state: ReturnType<typeof useGame>['state']; isHost: boolean; startTournament: () => void; onPlayLocal: () => void }
+  ctx: {
+    state: ReturnType<typeof useGame>['state'];
+    isHost: boolean;
+    startTournament: () => void;
+    returnToLobby: () => void;
+    onPlayLocal: () => void;
+  }
 ) {
   switch (phase) {
     case 'lobby':
@@ -56,7 +62,13 @@ function renderScreen(
     case 'tournament':
       return <MatchSimulation matches={ctx.state.liveMatches} standings={ctx.state.liveStandings} />;
     case 'awards':
-      return <Awards awards={ctx.state.room!.awards} standings={ctx.state.room!.standings.length > 0 ? ctx.state.room!.standings : ctx.state.liveStandings} />;
+      return (
+        <Awards
+          awards={ctx.state.room!.awards}
+          standings={ctx.state.room!.standings.length > 0 ? ctx.state.room!.standings : ctx.state.liveStandings}
+          onBackToLobby={ctx.isHost ? ctx.returnToLobby : undefined}
+        />
+      );
     default:
       return <Home onPlayLocal={ctx.onPlayLocal} />;
   }

@@ -8,7 +8,7 @@ import Awards from '../Awards';
 import ToastContainer from '../ui/ToastContainer';
 
 function LocalScreens({ onExit }: { onExit: () => void }) {
-  const { state, dismissToast, startTournament } = useLocalGame();
+  const { state, dismissToast, startTournament, reset } = useLocalGame();
 
   return (
     <>
@@ -24,7 +24,7 @@ function LocalScreens({ onExit }: { onExit: () => void }) {
           case 'tournament':
             return <MatchSimulation matches={state.matches} standings={state.standings} />;
           case 'awards':
-            return <Awards awards={state.awards} standings={state.standings} />;
+            return <Awards awards={state.awards} standings={state.standings} onBackToLobby={reset} backToLobbyLabel="🏠 Nova Partida (voltar ao lobby)" />;
           default:
             return null;
         }

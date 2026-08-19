@@ -31,11 +31,21 @@ function emptyMatch(sm: ScheduledMatch, teams: Team[]): MatchResult {
   };
 }
 
+/**
+ * Manda de campo é sorteado por partida (não pela ordem dos times) — senão o primeiro time
+ * cadastrado sempre jogaria em casa contra todo mundo e acumularia vantagem em toda rodada.
+ */
 export function buildLeagueMatches(teams: Team[]): MatchResult[] {
   const scheduled: ScheduledMatch[] = [];
   for (let i = 0; i < teams.length; i++) {
     for (let j = i + 1; j < teams.length; j++) {
-      scheduled.push({ id: crypto.randomUUID(), round: 'Fase única', homeTeamId: teams[i].id, awayTeamId: teams[j].id });
+      const swap = Math.random() < 0.5;
+      scheduled.push({
+        id: crypto.randomUUID(),
+        round: 'Fase única',
+        homeTeamId: swap ? teams[j].id : teams[i].id,
+        awayTeamId: swap ? teams[i].id : teams[j].id,
+      });
     }
   }
   return shuffle(scheduled).map((sm) => emptyMatch(sm, teams));
@@ -91,7 +101,10 @@ export function buildWorldCupGroups(teams: Team[]): { matches: MatchResult[]; gr
     const ids = groups[g];
     for (let i = 0; i < ids.length; i++) {
       for (let j = i + 1; j < ids.length; j++) {
-        matches.push(emptyMatch({ id: crypto.randomUUID(), round: `Grupo ${g}`, homeTeamId: ids[i], awayTeamId: ids[j] }, teams));
+        const swap = Math.random() < 0.5;
+        matches.push(
+          emptyMatch({ id: crypto.randomUUID(), round: `Grupo ${g}`, homeTeamId: swap ? ids[j] : ids[i], awayTeamId: swap ? ids[i] : ids[j] }, teams)
+        );
       }
     }
   }

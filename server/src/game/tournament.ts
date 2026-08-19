@@ -40,17 +40,22 @@ function emptyMatch(sm: ScheduledMatch, teams: Team[]): MatchResult {
   };
 }
 
-/** Pontos corridos: todos contra todos, um único turno. */
+/**
+ * Pontos corridos: todos contra todos, um único turno. Manda de campo é sorteado por partida
+ * (não pela ordem de entrada na sala) — senão quem cria a sala sempre joga em casa contra todo
+ * mundo e acumula a vantagem de mando em toda rodada.
+ */
 export function buildLeagueMatches(teams: Team[]): MatchResult[] {
   const playable = teams.filter((t) => !t.isSpectator);
   const scheduled: ScheduledMatch[] = [];
   for (let i = 0; i < playable.length; i++) {
     for (let j = i + 1; j < playable.length; j++) {
+      const swap = Math.random() < 0.5;
       scheduled.push({
         id: randomUUID(),
         round: 'Fase única',
-        homeTeamId: playable[i].id,
-        awayTeamId: playable[j].id,
+        homeTeamId: swap ? playable[j].id : playable[i].id,
+        awayTeamId: swap ? playable[i].id : playable[j].id,
       });
     }
   }
@@ -117,9 +122,10 @@ export function buildWorldCupGroups(teams: Team[]): { matches: MatchResult[]; gr
     const ids = groups[g];
     for (let i = 0; i < ids.length; i++) {
       for (let j = i + 1; j < ids.length; j++) {
+        const swap = Math.random() < 0.5;
         matches.push(
           emptyMatch(
-            { id: randomUUID(), round: `Grupo ${g}`, homeTeamId: ids[i], awayTeamId: ids[j] },
+            { id: randomUUID(), round: `Grupo ${g}`, homeTeamId: swap ? ids[j] : ids[i], awayTeamId: swap ? ids[i] : ids[j] },
             teams
           )
         );

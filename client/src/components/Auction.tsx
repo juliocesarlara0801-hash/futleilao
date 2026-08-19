@@ -5,6 +5,7 @@ import PlayerCard from './PlayerCard';
 import Timer from './Timer';
 import Button from './ui/Button';
 import ChatPanel from './ChatPanel';
+import SquadViewer from './SquadViewer';
 import { canBidOnPosition, formatMoney, maxAllowedBid } from '../utils/helpers';
 import type { PublicTeam } from '../types/client';
 
@@ -129,7 +130,8 @@ export default function Auction() {
         <TeamsBudgetBar teams={teams} currentPosition={player?.position} config={config} />
       </div>
 
-      <div className="w-full lg:w-72">
+      <div className="w-full lg:w-72 flex flex-col gap-4">
+        {config.auctionStyle === 'open' && <SquadViewer teams={teams} myTeamId={myTeam?.id ?? null} />}
         <ChatPanel />
       </div>
     </div>

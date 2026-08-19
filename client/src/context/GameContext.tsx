@@ -83,6 +83,19 @@ function reducer(state: GameState, action: Action): GameState {
     case 'JOINED':
       return { ...state, roomCode: action.roomCode, myTeamId: action.teamId, room: action.room, qrCode: action.qrCode ?? state.qrCode };
     case 'ROOM_STATE':
+      if (action.room.phase === 'lobby') {
+        return {
+          ...state,
+          room: action.room,
+          roomCode: action.room.code,
+          liveMatches: [],
+          liveStandings: [],
+          lastBidResult: null,
+          openBid: null,
+          currentAuctionPlayer: null,
+          narrationCache: {},
+        };
+      }
       return { ...state, room: action.room, roomCode: action.room.code };
     case 'REVEAL_PLAYER':
       return { ...state, currentAuctionPlayer: action.payload, lastBidResult: null, openBid: null };
@@ -131,6 +144,7 @@ interface GameContextValue {
   vetoPurchase(targetTeamId: string, playerId: string): void;
   sendChat(message: string): void;
   startTournament(): void;
+  returnToLobby(): void;
   requestMatchDetails(matchId: string): void;
   dismissToast(id: string): void;
   myTeam: RoomSnapshot['teams'][number] | null;
@@ -283,6 +297,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     socketRef.current.emit('start_tournament', { roomCode: state.roomCode });
   }, [state.roomCode]);
 
+  const returnToLobby = useCallback(() => {
+    if (!state.roomCode) return;
+    socketRef.current.emit('return_to_lobby', { roomCode: state.roomCode });
+  }, [state.roomCode]);
+
   const requestMatchDetails = useCallback(
     (matchId: string) => {
       if (!state.roomCode) return;
@@ -310,6 +329,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     vetoPurchase,
     sendChat,
     startTournament,
+    returnToLobby,
     requestMatchDetails,
     dismissToast,
     myTeam,

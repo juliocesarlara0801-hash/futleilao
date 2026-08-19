@@ -212,6 +212,15 @@ export function registerSocketHandlers(io: Server) {
       runTournament(io, room).catch((err) => console.error('Erro ao rodar torneio', err));
     });
 
+    socket.on('return_to_lobby', ({ roomCode }: { roomCode: string }) => {
+      const room = getRoom(roomCode);
+      const team = room?.teams.find((t) => t.socketId === socket.id);
+      if (!room || !team?.isHost || room.phase !== 'awards') return;
+      resetRoomToLobby(room);
+      systemChat(io, room, '🔁 O host voltou pro lobby. Configurem e iniciem um novo leilão quando quiserem!');
+      emitRoomState(io, room);
+    });
+
     socket.on('request_match_details', ({ roomCode, matchId }: { roomCode: string; matchId: string }) => {
       const room = getRoom(roomCode);
       const match = room?.matches.find((m) => m.id === matchId);
@@ -236,6 +245,35 @@ export function registerSocketHandlers(io: Server) {
       removeRoomIfEmpty(room.code);
     });
   });
+}
+
+/** Reseta a sala pro lobby (mesmo código, mesmos jogadores conectados) pra jogar de novo do zero. */
+function resetRoomToLobby(room: RuntimeRoom) {
+  if (room.timerHandle) {
+    clearInterval(room.timerHandle);
+    room.timerHandle = null;
+  }
+  room.phase = 'lobby';
+  room.pool = [];
+  room.revealQueue = [];
+  room.auctionIndex = 0;
+  room.currentAuctionPlayer = null;
+  room.currentBids = [];
+  room.openAuctionHighestBid = null;
+  room.matches = [];
+  room.standings = [];
+  room.awards = [];
+  room.bracket = [];
+  room.worldCupGroups = null;
+
+  for (const team of room.teams) {
+    if (team.isSpectator) continue;
+    team.players = [];
+    team.budget = room.config.budget;
+    team.spent = 0;
+    team.vetoUsed = false;
+    team.isReady = team.isHost;
+  }
 }
 
 function estimateSpentFor(team: Team, player: Player): number {
@@ -446,12 +484,19 @@ async function simulateAndBroadcast(io: Server, room: RuntimeRoom, match: MatchR
   io.to(room.code).emit('match_result', { match });
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function playMatches(io: Server, room: RuntimeRoom, matches: MatchResult[], isKnockout: boolean) {
   for (const match of matches) {
     await simulateAndBroadcast(io, room, match, isKnockout);
     const standings = computeStandings(room.matches, room.teams.filter((t) => !t.isSpectator));
     room.standings = standings;
     io.to(room.code).emit('standings_update', { standings });
+    // Dá tempo pra narração (lances perigosos + gols) rodar na tela antes de mandar a próxima partida.
+    const eventCount = match.events.length + (match.extraTime?.events.length ?? 0);
+    await sleep(Math.min(4000, 1200 + eventCount * 350));
   }
 }
 

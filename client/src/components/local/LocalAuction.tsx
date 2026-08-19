@@ -4,6 +4,7 @@ import { useLocalGame } from '../../context/LocalGameContext';
 import PlayerCard from '../PlayerCard';
 import Button from '../ui/Button';
 import LocalPassDevice from './LocalPassDevice';
+import SquadViewer from '../SquadViewer';
 import { formatMoney } from '../../utils/helpers';
 
 export default function LocalAuction() {
@@ -165,6 +166,8 @@ export default function LocalAuction() {
           <Button variant="danger" onClick={openHammer} className="w-full">
             🔨 Arrematar
           </Button>
+
+          <SquadViewer teams={teams} />
         </div>
       )}
 

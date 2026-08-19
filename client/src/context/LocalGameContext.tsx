@@ -269,6 +269,10 @@ function reducer(state: LocalState, action: Action): LocalState {
   }
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function simulateOne(match: MatchResult, teams: Team[], mode: RoomConfig['mode'], isKnockout: boolean): Promise<MatchResult> {
   const home = teams.find((t) => t.id === match.homeTeamId)!;
   const away = teams.find((t) => t.id === match.awayTeamId)!;
@@ -335,6 +339,9 @@ export function LocalGameProvider({ children }: { children: React.ReactNode }) {
           allPlayed.push(played);
           dispatch({ type: 'MATCH_PLAYED', match: played });
           dispatch({ type: 'STANDINGS', standings: computeStandings(allPlayed, teams) });
+          // Dá tempo pra narração (lances perigosos + gols) rodar na tela antes da próxima partida.
+          const eventCount = played.events.length + (played.extraTime?.events.length ?? 0);
+          await sleep(Math.min(4000, 1200 + eventCount * 350));
         }
       }
 

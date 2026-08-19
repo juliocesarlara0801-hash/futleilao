@@ -26,6 +26,7 @@ function ScorePill({ match }: { match: MatchResult }) {
 function QuickResult({ match }: { match: MatchResult }) {
   const allEvents = [...match.events, ...(match.extraTime?.events ?? [])];
   const goals = allEvents.filter((e) => e.type === 'goal');
+  const nearMisses = allEvents.filter((e) => e.type === 'nearMiss');
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between text-xl font-bold">
@@ -47,6 +48,7 @@ function QuickResult({ match }: { match: MatchResult }) {
         ))}
         {goals.length === 0 && <p className="text-white/40 text-sm">Nenhum gol na partida.</p>}
       </div>
+      {nearMisses.length > 0 && <p className="text-sm text-white/50">💨 {nearMisses.length} lances perigosos na partida</p>}
       {match.manOfTheMatch && (
         <p className="text-sm text-gold">
           🌟 Craque da partida: <span className="font-semibold">{match.manOfTheMatch}</span>
