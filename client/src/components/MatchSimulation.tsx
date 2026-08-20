@@ -59,23 +59,46 @@ function QuickResult({ match }: { match: MatchResult }) {
   );
 }
 
-function FullNarration({ match }: { match: MatchResult }) {
+// Tempo que cada lance fica na tela antes do próximo aparecer — gols e chances
+// perigosas ficam mais tempo visíveis, pra dar tempo de ler o que aconteceu.
+function dwellTimeFor(event: MatchEvent | undefined): number {
+  if (!event) return 900;
+  if (event.type === 'goal') return 2200;
+  if (event.type === 'nearMiss' || event.type === 'penalty') return 1400;
+  return 1000;
+}
+
+function FullNarration({ match, onDone }: { match: MatchResult; onDone: () => void }) {
   const allEvents = useMemo(() => [...match.events, ...(match.extraTime?.events ?? [])].sort((a, b) => a.minute - b.minute), [match]);
   const [visibleCount, setVisibleCount] = useState(1);
 
   useEffect(() => {
     setVisibleCount(1);
-    if (allEvents.length <= 1) return;
-    const interval = setInterval(() => {
-      setVisibleCount((c) => {
-        if (c >= allEvents.length) {
-          clearInterval(interval);
-          return c;
+    if (allEvents.length <= 1) {
+      onDone();
+      return;
+    }
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+
+    function scheduleNext(nextIndex: number) {
+      timer = setTimeout(() => {
+        if (cancelled) return;
+        setVisibleCount(nextIndex + 1);
+        if (nextIndex + 1 >= allEvents.length) {
+          onDone();
+        } else {
+          scheduleNext(nextIndex + 1);
         }
-        return c + 1;
-      });
-    }, 550);
-    return () => clearInterval(interval);
+      }, dwellTimeFor(allEvents[nextIndex - 1]));
+    }
+    scheduleNext(1);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [match.id, allEvents.length]);
 
   return (
@@ -114,12 +137,31 @@ interface MatchSimulationProps {
 export default function MatchSimulation({ matches, standings }: MatchSimulationProps) {
   const [mode, setMode] = useState<'quick' | 'full'>('full');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [followLive, setFollowLive] = useState(true);
+  const [narrationDone, setNarrationDone] = useState(false);
 
   const selected = matches.find((m) => m.id === selectedId) ?? matches[matches.length - 1] ?? null;
+  const latestId = matches.length > 0 ? matches[matches.length - 1].id : null;
+  const pendingCount = latestId && selectedId && selectedId !== latestId ? matches.length - 1 - matches.findIndex((m) => m.id === selectedId) : 0;
+
+  // Só pula pra próxima partida sozinho quando o usuário está "seguindo ao vivo" e a
+  // narração da partida atual já terminou de ser revelada — assim não corta o lance
+  // no meio pra já mostrar o resultado da partida seguinte.
+  useEffect(() => {
+    if (!followLive || !latestId) return;
+    if (selectedId === null || mode === 'quick' || narrationDone) {
+      if (selectedId !== latestId) setSelectedId(latestId);
+    }
+  }, [followLive, latestId, mode, narrationDone, selectedId]);
 
   useEffect(() => {
-    if (matches.length > 0) setSelectedId(matches[matches.length - 1].id);
-  }, [matches.length]);
+    setNarrationDone(false);
+  }, [selectedId, mode]);
+
+  function selectMatch(id: string) {
+    setSelectedId(id);
+    setFollowLive(id === latestId);
+  }
 
   return (
     <div className="min-h-screen p-4 sm:p-6 max-w-6xl mx-auto flex flex-col gap-6">
@@ -133,7 +175,7 @@ export default function MatchSimulation({ matches, standings }: MatchSimulationP
             .map((m) => (
               <button
                 key={m.id}
-                onClick={() => setSelectedId(m.id)}
+                onClick={() => selectMatch(m.id)}
                 className={`text-left px-3 py-2 rounded-xl border text-sm transition ${
                   selected?.id === m.id ? 'border-gold bg-gold/10' : 'border-white/10 bg-white/5 hover:bg-white/10'
                 }`}
@@ -150,24 +192,38 @@ export default function MatchSimulation({ matches, standings }: MatchSimulationP
         <div className="flex flex-col gap-4">
           {selected && (
             <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
-              <div className="flex justify-between items-center mb-4">
+              <div className="flex justify-between items-center mb-2">
                 <p className="text-white/50 text-sm">{selected.round}</p>
                 <div className="flex gap-1 bg-white/5 rounded-full p-1">
                   <button
                     onClick={() => setMode('full')}
                     className={`px-3 py-1 rounded-full text-xs font-semibold ${mode === 'full' ? 'bg-gold text-pitch-darker' : 'text-white/60'}`}
                   >
-                    Narração
+                    🎙️ Narração
                   </button>
                   <button
                     onClick={() => setMode('quick')}
                     className={`px-3 py-1 rounded-full text-xs font-semibold ${mode === 'quick' ? 'bg-gold text-pitch-darker' : 'text-white/60'}`}
                   >
-                    Resultado Rápido
+                    ⏭️ Pular narração
                   </button>
                 </div>
               </div>
-              {mode === 'full' ? <FullNarration key={selected.id} match={selected} /> : <QuickResult match={selected} />}
+              {!followLive && (
+                <div className="flex items-center justify-between gap-2 mb-3 px-3 py-1.5 rounded-lg bg-gold/10 border border-gold/30 text-xs text-gold">
+                  <span>
+                    ⏸ Revendo essa partida{pendingCount > 0 ? ` — ${pendingCount} já rolaram enquanto isso` : ''}.
+                  </span>
+                  <button onClick={() => selectMatch(latestId!)} className="font-bold underline shrink-0">
+                    🔴 Voltar ao vivo
+                  </button>
+                </div>
+              )}
+              {mode === 'full' ? (
+                <FullNarration key={selected.id} match={selected} onDone={() => setNarrationDone(true)} />
+              ) : (
+                <QuickResult match={selected} />
+              )}
             </div>
           )}
 
