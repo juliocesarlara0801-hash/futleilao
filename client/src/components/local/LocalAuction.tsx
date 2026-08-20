@@ -8,18 +8,20 @@ import SquadViewer from '../SquadViewer';
 import { formatMoney } from '../../utils/helpers';
 
 export default function LocalAuction() {
-  const { state, submitBid, openRaise, openHammer, continueAfterResult, maxBidFor, canTeamBid } = useLocalGame();
+  const { state, submitBid, openRaise, openPass, openHammer, continueAfterResult, maxBidFor, canTeamBid } = useLocalGame();
   const { currentPlayer, lastResult, teams, turnOrder, turnPointer, config } = state;
 
   const [gateOpen, setGateOpen] = useState(false);
   const [amount, setAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [raiseAmount, setRaiseAmount] = useState('');
+  const [justPassed, setJustPassed] = useState(false);
 
   useEffect(() => {
     setGateOpen(false);
     setAmount('');
     setError(null);
+    setJustPassed(false);
   }, [currentPlayer?.id, turnPointer]);
 
   useEffect(() => {
@@ -50,7 +52,12 @@ export default function LocalAuction() {
 
   function handlePass() {
     if (!currentTeam) return;
-    submitBid(currentTeam.id, null);
+    setJustPassed(true);
+    setTimeout(() => submitBid(currentTeam.id, null), 700);
+  }
+
+  function handleOpenPass(teamId: string) {
+    openPass(teamId);
   }
 
   function handleOpenRaise(teamId: string) {
@@ -102,7 +109,14 @@ export default function LocalAuction() {
         />
       )}
 
-      {config.auctionStyle === 'sealed' && currentPlayer && currentTeam && gateOpen && (
+      {config.auctionStyle === 'sealed' && currentPlayer && currentTeam && gateOpen && justPassed && (
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center gap-1 w-full max-w-xs text-center">
+          <p className="text-2xl">✋</p>
+          <p className="text-white/80">{currentTeam.teamName} passou nesse jogador.</p>
+        </motion.div>
+      )}
+
+      {config.auctionStyle === 'sealed' && currentPlayer && currentTeam && gateOpen && !justPassed && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center gap-2 w-full max-w-xs">
           <p className="text-white/70 text-sm">
             {currentTeam.teamName} — saldo R$ {currentTeam.budget}
@@ -143,25 +157,43 @@ export default function LocalAuction() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
             {teams
               .filter((t) => canTeamBid(t))
-              .map((t) => (
-                <div key={t.id} className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
-                  <span className="flex-1 truncate text-sm">{t.teamName}</span>
-                  <input
-                    type="number"
-                    min={(state.openHighest?.amount ?? 0) + 1}
-                    max={maxBidFor(t)}
-                    defaultValue={(state.openHighest?.amount ?? 0) + 1}
-                    onChange={(e) => setRaiseAmount(e.target.value)}
-                    className="w-16 px-2 py-1 rounded bg-white/10 text-center text-sm"
-                  />
-                  <button
-                    onClick={() => handleOpenRaise(t.id)}
-                    className="px-3 py-1 rounded-lg bg-gold text-pitch-darker font-bold text-sm"
-                  >
-                    Cobrir
-                  </button>
-                </div>
-              ))}
+              .map((t) => {
+                const isLeading = state.openHighest?.teamId === t.id;
+                const hasPassed = state.openPassed.includes(t.id);
+                return (
+                  <div key={t.id} className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
+                    <span className="flex-1 truncate text-sm">{t.teamName}</span>
+                    {isLeading ? (
+                      <span className="text-green-400 text-xs font-bold">🥇 na frente</span>
+                    ) : hasPassed ? (
+                      <span className="text-white/40 text-xs">✋ passou</span>
+                    ) : (
+                      <>
+                        <input
+                          type="number"
+                          min={(state.openHighest?.amount ?? 0) + 1}
+                          max={maxBidFor(t)}
+                          defaultValue={(state.openHighest?.amount ?? 0) + 1}
+                          onChange={(e) => setRaiseAmount(e.target.value)}
+                          className="w-16 px-2 py-1 rounded bg-white/10 text-center text-sm"
+                        />
+                        <button
+                          onClick={() => handleOpenRaise(t.id)}
+                          className="px-3 py-1 rounded-lg bg-gold text-pitch-darker font-bold text-sm"
+                        >
+                          Cobrir
+                        </button>
+                        <button
+                          onClick={() => handleOpenPass(t.id)}
+                          className="px-2 py-1 rounded-lg bg-white/10 text-white/70 text-xs"
+                        >
+                          Não cobrir
+                        </button>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
           </div>
           <Button variant="danger" onClick={openHammer} className="w-full">
             🔨 Arrematar

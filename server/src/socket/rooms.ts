@@ -7,6 +7,7 @@ export interface RuntimeRoom extends Room {
   timerHandle: ReturnType<typeof setInterval> | null;
   timerSecondsLeft: number;
   openAuctionHighestBid: { teamId: string; amount: number } | null;
+  openAuctionPassed: Set<string>;
   worldCupGroups: Record<string, string[]> | null;
 }
 
@@ -30,6 +31,7 @@ const DEFAULT_CONFIGS: Record<GameMode, RoomConfig> = {
     tournamentFormat: 'league',
     maxPlayers: 6,
     auctionStyle: 'sealed',
+    playerPool: 'mixed',
     jokersEnabled: false,
     vetoEnabled: false,
   },
@@ -41,6 +43,7 @@ const DEFAULT_CONFIGS: Record<GameMode, RoomConfig> = {
     tournamentFormat: 'league',
     maxPlayers: 16,
     auctionStyle: 'sealed',
+    playerPool: 'mixed',
     jokersEnabled: false,
     vetoEnabled: false,
   },
@@ -81,6 +84,7 @@ export function createRoom(hostName: string, teamName: string, mode: GameMode, c
     timerHandle: null,
     timerSecondsLeft: 0,
     openAuctionHighestBid: null,
+    openAuctionPassed: new Set(),
     worldCupGroups: null,
   };
   hostTeam.budget = room.config.budget;

@@ -15,11 +15,13 @@ export default function Auction() {
   const [amount, setAmount] = useState('');
   const [bidError, setBidError] = useState<string | null>(null);
   const [myBidSubmitted, setMyBidSubmitted] = useState(false);
+  const [myPassed, setMyPassed] = useState(false);
 
   useEffect(() => {
     setAmount('');
     setBidError(null);
     setMyBidSubmitted(false);
+    setMyPassed(false);
   }, [state.currentAuctionPlayer?.player.id]);
 
   if (!room) return null;
@@ -30,6 +32,7 @@ export default function Auction() {
   const teams = room.teams.filter((t) => !t.isSpectator);
   const myCanBid = myTeam && player && canBidOnPosition(myTeam, config, player.position);
   const myMax = myTeam ? maxAllowedBid(myTeam, config) : 0;
+  const isHighestBidder = config.auctionStyle === 'open' && !!myTeam && state.openBid?.teamId === myTeam.id;
 
   async function handleBid() {
     const value = Number(amount);
@@ -44,6 +47,12 @@ export default function Auction() {
     const res = await placeBid(value);
     if (!res.ok) setBidError(res.error ?? 'Lance inválido');
     else setMyBidSubmitted(true);
+  }
+
+  async function handlePass() {
+    const res = await passBid();
+    if (res.ok) setMyPassed(true);
+    else if (res.error) setBidError(res.error);
   }
 
   return (
@@ -90,6 +99,11 @@ export default function Auction() {
             ) : (
               <p className="text-white/50">Nenhum lance ainda. Lance inicial: R$ 1</p>
             )}
+            {state.openPassedTeamIds.length > 0 && (
+              <p className="text-white/40 text-xs mt-1">
+                ✋ Passaram: {state.openPassedTeamIds.map((id) => teams.find((t) => t.id === id)?.teamName ?? '?').join(', ')}
+              </p>
+            )}
           </div>
         )}
 
@@ -99,6 +113,10 @@ export default function Auction() {
               <p className="text-white/50 text-sm text-center">
                 {myTeam.budget <= 0 ? 'Sem saldo disponível.' : 'Posição completa — você não pode dar lance.'}
               </p>
+            ) : myPassed ? (
+              <p className="text-white/60 text-sm text-center">✋ Você passou nesse jogador.</p>
+            ) : isHighestBidder ? (
+              <p className="text-green-400 text-sm text-center">🥇 Você está na frente do lance!</p>
             ) : (
               <>
                 <div className="flex gap-2 w-full">
@@ -109,15 +127,16 @@ export default function Auction() {
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     placeholder={`Máx: R$ ${myMax}`}
-                    className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/20 text-white text-lg text-center focus:outline-none focus:ring-2 focus:ring-gold"
+                    disabled={myBidSubmitted && config.auctionStyle === 'sealed'}
+                    className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/20 text-white text-lg text-center focus:outline-none focus:ring-2 focus:ring-gold disabled:opacity-40"
                   />
                   <Button onClick={handleBid} disabled={myBidSubmitted && config.auctionStyle === 'sealed'}>
                     {config.auctionStyle === 'open' ? 'Cobrir' : 'Dar Lance'}
                   </Button>
                 </div>
-                {config.auctionStyle === 'sealed' && (
-                  <Button variant="ghost" onClick={passBid} className="w-full text-sm">
-                    Passar (não quero)
+                {!(myBidSubmitted && config.auctionStyle === 'sealed') && (
+                  <Button variant="ghost" onClick={handlePass} className="w-full text-sm">
+                    {config.auctionStyle === 'open' ? 'Não cobrir (passar)' : 'Passar (não quero)'}
                   </Button>
                 )}
                 {bidError && <p className="text-red-400 text-sm">{bidError}</p>}

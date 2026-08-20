@@ -24,6 +24,7 @@ export default function Home({ onPlayLocal }: { onPlayLocal: () => void }) {
   const [formation, setFormation] = useState<RoomConfig['formation']>('4-3-3');
   const [tournamentFormat, setTournamentFormat] = useState<'league' | 'knockout' | 'worldcup'>('league');
   const [auctionStyle, setAuctionStyle] = useState<'sealed' | 'open'>('sealed');
+  const [playerPool, setPlayerPool] = useState<'mixed' | 'current' | 'legends'>('mixed');
   const [jokersEnabled, setJokersEnabled] = useState(false);
   const [vetoEnabled, setVetoEnabled] = useState(false);
 
@@ -42,7 +43,7 @@ export default function Home({ onPlayLocal }: { onPlayLocal: () => void }) {
       hostName: hostName.trim(),
       teamName: teamName.trim(),
       mode,
-      config: { mode, budget, bidTimer: bidTimer as 15 | 30 | 45 | 60, formation, tournamentFormat, auctionStyle, jokersEnabled, vetoEnabled },
+      config: { mode, budget, bidTimer: bidTimer as 15 | 30 | 45 | 60, formation, tournamentFormat, auctionStyle, playerPool, jokersEnabled, vetoEnabled },
     });
     setLoading(false);
     if (!res.ok) setError(res.error ?? 'Erro ao criar sala');
@@ -139,6 +140,16 @@ export default function Home({ onPlayLocal }: { onPlayLocal: () => void }) {
               { value: 'league', label: 'Pontos corridos' },
               { value: 'knockout', label: 'Mata-mata (4 ou 8 times)' },
               { value: 'worldcup', label: 'Copa do Mundo (16 times)' },
+            ]}
+          />
+          <Select
+            label="Craques do leilão"
+            value={playerPool}
+            onChange={(e) => setPlayerPool(e.target.value as 'mixed' | 'current' | 'legends')}
+            options={[
+              { value: 'mixed', label: 'Todos (atuais + lendas no auge)' },
+              { value: 'current', label: 'Só atuais (nota de hoje)' },
+              { value: 'legends', label: 'Só lendas (nota no auge/prime)' },
             ]}
           />
           <div className="flex flex-col gap-2 text-sm text-white/80 mt-1">

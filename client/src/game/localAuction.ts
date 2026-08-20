@@ -11,15 +11,22 @@ export function getFormationRequirements(config: { mode: GameMode; formation: st
   return req;
 }
 
-export function generatePool(allPlayers: Player[], requirements: FormationRequirements, numTeams: number): Player[] {
+export function generatePool(
+  allPlayers: Player[],
+  requirements: FormationRequirements,
+  numTeams: number,
+  playerPool: 'mixed' | 'current' | 'legends' = 'mixed'
+): Player[] {
   const positions: Position[] = ['atacante', 'meia', 'defensor', 'goleiro'];
   const pool: Player[] = [];
+  const eligiblePlayers =
+    playerPool === 'mixed' ? allPlayers : allPlayers.filter((p) => p.era === (playerPool === 'current' ? 'current' : 'legend'));
 
   for (const position of positions) {
     const required = requirements[position];
     if (!required) continue;
-    const need = Math.min(required * (numTeams + 2), allPlayers.filter((p) => p.position === position).length);
-    const candidates = shuffle(allPlayers.filter((p) => p.position === position));
+    const need = Math.min(required * (numTeams + 2), eligiblePlayers.filter((p) => p.position === position).length);
+    const candidates = shuffle(eligiblePlayers.filter((p) => p.position === position));
     pool.push(...candidates.slice(0, need));
   }
 

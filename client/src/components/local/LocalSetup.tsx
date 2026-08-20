@@ -24,6 +24,7 @@ export default function LocalSetup({ onExit }: { onExit: () => void }) {
   const [formation, setFormation] = useState<RoomConfig['formation']>('4-3-3');
   const [tournamentFormat, setTournamentFormat] = useState<'league' | 'knockout' | 'worldcup'>('league');
   const [auctionStyle, setAuctionStyle] = useState<'sealed' | 'open'>('sealed');
+  const [playerPool, setPlayerPool] = useState<'mixed' | 'current' | 'legends'>('mixed');
   const [jokersEnabled, setJokersEnabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -82,6 +83,7 @@ export default function LocalSetup({ onExit }: { onExit: () => void }) {
       tournamentFormat: selectedFormat.enabled ? tournamentFormat : 'league',
       maxPlayers,
       auctionStyle,
+      playerPool,
       jokersEnabled,
       vetoEnabled: false,
     });
@@ -157,6 +159,16 @@ export default function LocalSetup({ onExit }: { onExit: () => void }) {
           options={[
             { value: 'sealed', label: 'Lance fechado (passa o aparelho, cada um dá seu lance em segredo)' },
             { value: 'open', label: 'Lance aberto (todo mundo vê e vai cobrindo, na tela pública)' },
+          ]}
+        />
+        <Select
+          label="Craques do leilão"
+          value={playerPool}
+          onChange={(e) => setPlayerPool(e.target.value as 'mixed' | 'current' | 'legends')}
+          options={[
+            { value: 'mixed', label: 'Todos (atuais + lendas no auge)' },
+            { value: 'current', label: 'Só atuais (nota de hoje)' },
+            { value: 'legends', label: 'Só lendas (nota no auge/prime)' },
           ]}
         />
         <Select

@@ -149,6 +149,9 @@ export function registerSocketHandlers(io: Server) {
       }
 
       if (room.config.auctionStyle === 'open') {
+        if (room.openAuctionPassed.has(team.id)) {
+          return ack?.({ ok: false, error: 'Você já passou nesse jogador.' });
+        }
         if (room.openAuctionHighestBid && amount <= room.openAuctionHighestBid.amount) {
           return ack?.({ ok: false, error: 'O lance precisa ser maior que o lance atual.' });
         }
@@ -165,11 +168,34 @@ export function registerSocketHandlers(io: Server) {
       ack?.({ ok: true });
     });
 
-    socket.on('pass_bid', ({ roomCode }: { roomCode: string }) => {
+    socket.on('pass_bid', ({ roomCode }: { roomCode: string }, ack?: (res: any) => void) => {
       const room = getRoom(roomCode);
       const team = room?.teams.find((t) => t.socketId === socket.id);
-      if (!room || !team) return;
+      if (!room || !team || room.phase !== 'auction' || !room.currentAuctionPlayer) {
+        ack?.({ ok: false });
+        return;
+      }
+
+      if (room.config.auctionStyle === 'open') {
+        if (room.openAuctionHighestBid?.teamId === team.id) {
+          ack?.({ ok: false, error: 'Você está na frente do lance, não dá pra passar.' });
+          return;
+        }
+        room.openAuctionPassed.add(team.id);
+        io.to(room.code).emit('open_bid_pass', { teamId: team.id, teamName: team.teamName });
+        ack?.({ ok: true });
+        if (allEligibleTeamsDecided(room)) {
+          if (room.timerHandle) {
+            clearInterval(room.timerHandle);
+            room.timerHandle = null;
+          }
+          resolveRound(io, room);
+        }
+        return;
+      }
+
       room.currentBids = room.currentBids.filter((b) => b.teamId !== team.id);
+      ack?.({ ok: true });
     });
 
     socket.on('veto_purchase', ({ roomCode, targetTeamId, playerId }: { roomCode: string; targetTeamId: string; playerId: string }) => {
@@ -260,6 +286,7 @@ function resetRoomToLobby(room: RuntimeRoom) {
   room.currentAuctionPlayer = null;
   room.currentBids = [];
   room.openAuctionHighestBid = null;
+  room.openAuctionPassed = new Set();
   room.matches = [];
   room.standings = [];
   room.awards = [];
@@ -288,7 +315,7 @@ function estimateSpentFor(team: Team, player: Player): number {
 function startAuction(io: Server, room: RuntimeRoom) {
   const requirements = getFormationRequirements(room.config);
   const numTeams = room.teams.filter((t) => !t.isSpectator).length;
-  let pool = generatePool(ALL_PLAYERS, requirements, numTeams);
+  let pool = generatePool(ALL_PLAYERS, requirements, numTeams, room.config.playerPool);
   if (room.config.jokersEnabled) pool = applyJokers(pool);
 
   room.pool = pool;
@@ -297,6 +324,7 @@ function startAuction(io: Server, room: RuntimeRoom) {
   room.phase = 'auction';
   room.currentBids = [];
   room.openAuctionHighestBid = null;
+  room.openAuctionPassed = new Set();
 
   io.to(room.code).emit('auction_started', { pool });
   emitRoomState(io, room);
@@ -305,6 +333,15 @@ function startAuction(io: Server, room: RuntimeRoom) {
 
 function requirements(room: RuntimeRoom) {
   return getFormationRequirements(room.config);
+}
+
+/** No leilão aberto: true quando todo time que ainda pode dar lance já é o líder ou já passou (não precisa esperar o timer). */
+function allEligibleTeamsDecided(room: RuntimeRoom): boolean {
+  if (!room.currentAuctionPlayer) return false;
+  const req = requirements(room);
+  const eligible = room.teams.filter((t) => !t.isSpectator && canBidOnPosition(t, req, room.currentAuctionPlayer!.position));
+  const highestTeamId = room.openAuctionHighestBid?.teamId ?? null;
+  return eligible.every((t) => t.id === highestTeamId || room.openAuctionPassed.has(t.id));
 }
 
 function revealNextPlayer(io: Server, room: RuntimeRoom) {
@@ -330,6 +367,7 @@ function revealNextPlayer(io: Server, room: RuntimeRoom) {
   room.currentAuctionPlayer = player;
   room.currentBids = [];
   room.openAuctionHighestBid = null;
+  room.openAuctionPassed = new Set();
   room.auctionIndex++;
 
   const poolStatus = {
@@ -418,6 +456,7 @@ function resolveRound(io: Server, room: RuntimeRoom) {
   room.currentAuctionPlayer = null;
   room.currentBids = [];
   room.openAuctionHighestBid = null;
+  room.openAuctionPassed = new Set();
   emitRoomState(io, room);
   revealNextPlayer(io, room);
 }

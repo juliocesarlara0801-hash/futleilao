@@ -55,6 +55,7 @@ interface LocalState {
   turnPointer: number;
   roundBids: Bid[];
   openHighest: { teamId: string; amount: number } | null;
+  openPassed: string[];
   lastResult: LastResult | null;
   matches: MatchResult[];
   standings: TournamentStanding[];
@@ -70,6 +71,7 @@ const DEFAULT_CONFIG: RoomConfig = {
   tournamentFormat: 'league',
   maxPlayers: 6,
   auctionStyle: 'sealed',
+  playerPool: 'mixed',
   jokersEnabled: false,
   vetoEnabled: false,
 };
@@ -86,6 +88,7 @@ const initialState: LocalState = {
   turnPointer: 0,
   roundBids: [],
   openHighest: null,
+  openPassed: [],
   lastResult: null,
   matches: [],
   standings: [],
@@ -154,6 +157,7 @@ function advance(state: LocalState): LocalState {
     turnPointer: 0,
     roundBids: [],
     openHighest: null,
+    openPassed: [],
     lastResult: null,
     toasts,
   };
@@ -208,6 +212,7 @@ type Action =
   | { type: 'SETUP'; players: LocalPlayerSetup[]; config: RoomConfig }
   | { type: 'SUBMIT_BID'; teamId: string; amount: number | null }
   | { type: 'OPEN_RAISE'; teamId: string; amount: number }
+  | { type: 'OPEN_PASS'; teamId: string }
   | { type: 'OPEN_HAMMER' }
   | { type: 'CONTINUE' }
   | { type: 'TOURNAMENT_START' }
@@ -235,7 +240,7 @@ function reducer(state: LocalState, action: Action): LocalState {
         vetoUsed: false,
         connected: true,
       }));
-      let pool = generatePool(ALL_PLAYERS, requirements, teams.length);
+      let pool = generatePool(ALL_PLAYERS, requirements, teams.length, action.config.playerPool);
       if (action.config.jokersEnabled) pool = applyJokers(pool);
       return advance({ ...initialState, config: action.config, teams, revealQueue: pool, poolTotal: pool.length, phase: 'auction' });
     }
@@ -248,6 +253,16 @@ function reducer(state: LocalState, action: Action): LocalState {
     }
     case 'OPEN_RAISE':
       return { ...state, openHighest: { teamId: action.teamId, amount: action.amount } };
+    case 'OPEN_PASS': {
+      if (!state.currentPlayer || state.openHighest?.teamId === action.teamId) return state;
+      const openPassed = state.openPassed.includes(action.teamId) ? state.openPassed : [...state.openPassed, action.teamId];
+      const next = { ...state, openPassed };
+      const requirements = getFormationRequirements(state.config);
+      const eligible = state.teams.filter((t) => canBidOnPosition(t, requirements, state.currentPlayer!.position));
+      const highestId = state.openHighest?.teamId ?? null;
+      const allDecided = eligible.every((t) => t.id === highestId || openPassed.includes(t.id));
+      return allDecided ? resolveRound(next) : next;
+    }
     case 'OPEN_HAMMER':
       return resolveRound(state);
     case 'CONTINUE':
@@ -292,6 +307,7 @@ interface LocalGameContextValue {
   setup(players: LocalPlayerSetup[], config: RoomConfig): void;
   submitBid(teamId: string, amount: number | null): void;
   openRaise(teamId: string, amount: number): void;
+  openPass(teamId: string): void;
   openHammer(): void;
   continueAfterResult(): void;
   startTournament(): void;
@@ -318,6 +334,10 @@ export function LocalGameProvider({ children }: { children: React.ReactNode }) {
 
   const openRaise = useCallback((teamId: string, amount: number) => {
     dispatch({ type: 'OPEN_RAISE', teamId, amount });
+  }, []);
+
+  const openPass = useCallback((teamId: string) => {
+    dispatch({ type: 'OPEN_PASS', teamId });
   }, []);
 
   const openHammer = useCallback(() => dispatch({ type: 'OPEN_HAMMER' }), []);
@@ -401,6 +421,7 @@ export function LocalGameProvider({ children }: { children: React.ReactNode }) {
     setup,
     submitBid,
     openRaise,
+    openPass,
     openHammer,
     continueAfterResult,
     startTournament,

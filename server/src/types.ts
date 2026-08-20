@@ -128,6 +128,7 @@ export interface RoomConfig {
   tournamentFormat: TournamentFormat;
   maxPlayers: number;
   auctionStyle: 'sealed' | 'open';
+  playerPool: 'mixed' | 'current' | 'legends';
   jokersEnabled: boolean;
   vetoEnabled: boolean;
 }

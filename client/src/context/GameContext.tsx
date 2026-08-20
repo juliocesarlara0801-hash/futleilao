@@ -31,6 +31,7 @@ interface GameState {
   secondsLeft: number;
   lastBidResult: BidResultPayload | null;
   openBid: OpenBidState | null;
+  openPassedTeamIds: string[];
   toasts: Toast[];
   chat: ChatMessage[];
   liveMatches: MatchResult[];
@@ -49,6 +50,7 @@ const initialState: GameState = {
   secondsLeft: 0,
   lastBidResult: null,
   openBid: null,
+  openPassedTeamIds: [],
   toasts: [],
   chat: [],
   liveMatches: [],
@@ -65,6 +67,7 @@ type Action =
   | { type: 'TIMER_TICK'; secondsLeft: number }
   | { type: 'BID_RESULT'; payload: BidResultPayload }
   | { type: 'OPEN_BID'; payload: OpenBidState }
+  | { type: 'OPEN_PASS'; teamId: string }
   | { type: 'AUTO_ASSIGN'; payload: AutoAssignPayload }
   | { type: 'TOAST'; message: string; kind?: Toast['kind'] }
   | { type: 'CHAT'; message: ChatMessage }
@@ -92,19 +95,22 @@ function reducer(state: GameState, action: Action): GameState {
           liveStandings: [],
           lastBidResult: null,
           openBid: null,
+          openPassedTeamIds: [],
           currentAuctionPlayer: null,
           narrationCache: {},
         };
       }
       return { ...state, room: action.room, roomCode: action.room.code };
     case 'REVEAL_PLAYER':
-      return { ...state, currentAuctionPlayer: action.payload, lastBidResult: null, openBid: null };
+      return { ...state, currentAuctionPlayer: action.payload, lastBidResult: null, openBid: null, openPassedTeamIds: [] };
     case 'TIMER_TICK':
       return { ...state, secondsLeft: action.secondsLeft };
     case 'BID_RESULT':
       return { ...state, lastBidResult: action.payload, currentAuctionPlayer: null };
     case 'OPEN_BID':
       return { ...state, openBid: action.payload };
+    case 'OPEN_PASS':
+      return { ...state, openPassedTeamIds: [...state.openPassedTeamIds, action.teamId] };
     case 'AUTO_ASSIGN':
       return state;
     case 'TOAST': {
@@ -140,7 +146,7 @@ interface GameContextValue {
   updateConfig(config: Partial<RoomConfig>): void;
   startAuction(): void;
   placeBid(amount: number): Promise<{ ok: boolean; error?: string }>;
-  passBid(): void;
+  passBid(): Promise<{ ok: boolean; error?: string }>;
   vetoPurchase(targetTeamId: string, playerId: string): void;
   sendChat(message: string): void;
   startTournament(): void;
@@ -166,6 +172,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     const onTimer = (payload: { secondsLeft: number }) => dispatch({ type: 'TIMER_TICK', secondsLeft: payload.secondsLeft });
     const onBidResult = (payload: BidResultPayload) => dispatch({ type: 'BID_RESULT', payload });
     const onOpenBid = (payload: OpenBidState) => dispatch({ type: 'OPEN_BID', payload });
+    const onOpenPass = (payload: { teamId: string }) => dispatch({ type: 'OPEN_PASS', teamId: payload.teamId });
     const onAutoAssign = (payload: AutoAssignPayload) => {
       dispatch({ type: 'AUTO_ASSIGN', payload });
       dispatch({ type: 'TOAST', message: `🎲 ${payload.player.name} distribuído automaticamente para ${payload.teamName} por R$ 1!`, kind: 'info' });
@@ -187,6 +194,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     socket.on('timer_tick', onTimer);
     socket.on('bid_result', onBidResult);
     socket.on('open_bid_update', onOpenBid);
+    socket.on('open_bid_pass', onOpenPass);
     socket.on('auto_assign', onAutoAssign);
     socket.on('team_complete', onTeamComplete);
     socket.on('chat_message', onChat);
@@ -206,6 +214,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       socket.off('timer_tick', onTimer);
       socket.off('bid_result', onBidResult);
       socket.off('open_bid_update', onOpenBid);
+      socket.off('open_bid_pass', onOpenPass);
       socket.off('auto_assign', onAutoAssign);
       socket.off('team_complete', onTeamComplete);
       socket.off('chat_message', onChat);
@@ -272,8 +281,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   );
 
   const passBid = useCallback(() => {
-    if (!state.roomCode) return;
-    socketRef.current.emit('pass_bid', { roomCode: state.roomCode });
+    return new Promise<{ ok: boolean; error?: string }>((resolve) => {
+      if (!state.roomCode) return resolve({ ok: false, error: 'Sem sala ativa' });
+      socketRef.current.emit('pass_bid', { roomCode: state.roomCode }, (res: any) => resolve(res ?? { ok: true }));
+    });
   }, [state.roomCode]);
 
   const vetoPurchase = useCallback(
